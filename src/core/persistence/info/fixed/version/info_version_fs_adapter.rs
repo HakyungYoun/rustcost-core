@@ -3,7 +3,7 @@ use crate::core::persistence::info::fixed::info_fixed_fs_adapter_trait::InfoFixe
 use anyhow::{Context, Result};
 use std::{
     fs::{self, File},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader},
 };
 use crate::core::persistence::storage_path::{info_version_path};
 

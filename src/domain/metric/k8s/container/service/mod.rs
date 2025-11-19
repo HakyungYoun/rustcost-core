@@ -139,6 +139,9 @@ async fn build_container_raw_data(
         target: target_container_id,
         granularity: window.granularity.clone(),
         series,
+        total: None,
+        limit: None,
+        offset: None,
     };
 
     Ok((response, container_infos))

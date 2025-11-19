@@ -3,7 +3,7 @@ use crate::core::persistence::info::k8s::container::info_container_entity::InfoC
 use anyhow::{anyhow, Context, Result};
 use std::{
     fs::{self, File},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader},
     path::Path,
 };
 use crate::core::persistence::info::path::{info_k8s_container_key_dir_path, info_k8s_container_file_path};

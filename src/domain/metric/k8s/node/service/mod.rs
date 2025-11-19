@@ -90,44 +90,83 @@ async fn build_node_raw_data(
     q: RangeQuery,
     target: Option<String>,
 ) -> Result<(MetricGetResponseDto, Vec<InfoNodeEntity>)> {
+
     let window = resolve_time_window(&q);
     let repo = resolve_k8s_metric_repository(&MetricScope::Node, &window.granularity);
 
-    // 1. Load node list (single or all)
+    // 1️⃣ Load nodes (target or all)
     let mut node_infos = if let Some(node_name) = target.clone() {
         vec![info_k8s_node_service::get_info_k8s_node(node_name).await?]
     } else {
         info_k8s_node_service::list_k8s_nodes().await?
     };
 
-    // 2. Apply team/service/env filtering
-    // Helper closure for matching a field
+    // 2️⃣ Filter by team/service/env
     let matches = |value: &Option<String>, filter: &str| {
         value
             .as_deref()
             .map(|v| {
-                v.split(',') // allow multiple values like "prod,core"
+                v.split(',')
                     .any(|x| x.trim().eq_ignore_ascii_case(filter.trim()))
             })
             .unwrap_or(false)
     };
 
-    // Apply filtering
-    if let Some(ref team) = q.team {
-        node_infos.retain(|c| matches(&c.team, team));
+    if let Some(team) = &q.team {
+        node_infos.retain(|n| matches(&n.team, team));
+    }
+    if let Some(service) = &q.service {
+        node_infos.retain(|n| matches(&n.service, service));
+    }
+    if let Some(env) = &q.env {
+        node_infos.retain(|n| matches(&n.env, env));
     }
 
-    if let Some(ref service) = q.service {
-        node_infos.retain(|c| matches(&c.service, service));
+    // 3️⃣ Sorting (default sorted by node_name)
+    match q.sort.as_deref() {
+        Some("cpu") => {
+            node_infos.sort_by(|a, b| {
+                a.cpu_capacity_cores.cmp(&b.cpu_capacity_cores)
+            });
+        }
+        Some("memory") => {
+            node_infos.sort_by(|a, b| {
+                a.memory_capacity_bytes.cmp(&b.memory_capacity_bytes)
+            });
+        }
+        Some("ready") => {
+            node_infos.sort_by(|a, b| {
+                a.ready.cmp(&b.ready)
+            });
+        }
+        Some("ip") => {
+            node_infos.sort_by(|a, b| {
+                a.internal_ip.cmp(&b.internal_ip)
+            });
+        }
+        _ => {
+            node_infos.sort_by(|a, b| {
+                a.node_name.cmp(&b.node_name)
+            });
+        }
     }
 
-    if let Some(ref env) = q.env {
-        node_infos.retain(|c| matches(&c.env, env));
-    }
+    // 4️⃣ Apply pagination AFTER filtering & sorting
+    let offset = q.offset.unwrap_or(0);
+    let limit = q.limit.unwrap_or(100);
 
+    let total = node_infos.len();  // Total count for UI
 
+    let page_slice = node_infos
+        .iter()
+        .skip(offset)
+        .take(limit)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    // 5️⃣ Fetch metrics only for paginated subset 💡
     let mut series = Vec::new();
-    for node in node_infos.iter() {
+    for node in &page_slice {
         let node_name = node
             .node_name
             .clone()
@@ -142,6 +181,7 @@ async fn build_node_raw_data(
         });
     }
 
+    // 6️⃣ Build response
     let response = MetricGetResponseDto {
         start: window.start,
         end: window.end,
@@ -149,9 +189,13 @@ async fn build_node_raw_data(
         target,
         granularity: window.granularity.clone(),
         series,
+        // 🔥 pagination metadata 추가 가능(optional)
+        total: Some(total),
+        limit: Some(limit),
+        offset: Some(offset),
     };
 
-    Ok((response, node_infos))
+    Ok((response, page_slice))
 }
 
 fn sum_node_allocations(nodes: &[InfoNodeEntity]) -> (f64, f64, f64) {

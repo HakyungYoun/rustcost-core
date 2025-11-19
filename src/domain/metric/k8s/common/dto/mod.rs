@@ -11,6 +11,11 @@ pub struct MetricGetResponseDto {
     pub target: Option<String>,
     pub granularity: MetricGranularity,
     pub series: Vec<MetricSeriesDto>,
+
+    // pagination metadata (optional for backward compatibility)
+    pub total: Option<usize>,  // total points in range (not just returned count)
+    pub limit: Option<usize>,  // how many points returned max
+    pub offset: Option<usize>, // starting index of current page
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

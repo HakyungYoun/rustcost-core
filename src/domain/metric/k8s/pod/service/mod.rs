@@ -162,6 +162,9 @@ fn build_pod_series_for_infos(
         target,
         granularity: window.granularity,
         series,
+        total: None,
+        limit: None,
+        offset: None,
     })
 }
 

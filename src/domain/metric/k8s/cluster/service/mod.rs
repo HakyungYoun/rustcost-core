@@ -1,6 +1,6 @@
 use serde_json::{Value};
 use anyhow::Result;
-use chrono::{Utc};
+use chrono::{DateTime, Utc};
 use crate::api::dto::metrics_dto::RangeQuery;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
 use crate::core::persistence::metrics::k8s::node::day::metric_node_day_api_repository_trait::MetricNodeDayApiRepository;
@@ -16,6 +16,7 @@ use crate::domain::metric::k8s::common::dto::metric_k8s_cost_trend_dto::{MetricC
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_efficiency_dto::{MetricRawEfficiencyDto, MetricRawEfficiencyResponseDto};
 use crate::domain::metric::k8s::common::dto::metric_k8s_raw_summary_dto::{MetricRawSummaryDto, MetricRawSummaryResponseDto};
 use crate::domain::metric::k8s::common::service_helpers::resolve_time_window;
+use std::collections::BTreeMap;
 
 pub async fn get_metric_k8s_cluster_raw(
     node_info_list: Vec<InfoNodeEntity>,
@@ -25,28 +26,37 @@ pub async fn get_metric_k8s_cluster_raw(
     let window = resolve_time_window(&q);
     let repo = resolve_k8s_metric_repository(&MetricScope::Node, &window.granularity);
 
-    let mut aggregated_points: Vec<UniversalMetricPointDto> = vec![];
+    let mut aggregated_points: Vec<UniversalMetricPointDto> = Vec::new();
 
-    for node_info in node_info_list.iter() {
-        let node_name = match &node_info.node_name {
-            Some(name) => name.clone(),
-            None => continue,
+    for node in &node_info_list {
+        let Some(node_name) = &node.node_name else {
+            continue; // skip invalid node entries
         };
 
-        let metrics = match &repo {
-            K8sMetricRepositoryVariant::NodeMinute(r) => r.get_row_between(&node_name, window.start, window.end),
-            K8sMetricRepositoryVariant::NodeHour(r) => r.get_row_between(&node_name, window.start, window.end),
-            K8sMetricRepositoryVariant::NodeDay(r) => r.get_row_between(&node_name, window.start, window.end),
-            _ => Ok(vec![]), // ✅ make sure all branches return the same type
-        }
-            .unwrap_or_else(|_| vec![]);
+        // Load per-node metric rows
+        let rows = match &repo {
+            K8sMetricRepositoryVariant::NodeMinute(r) =>
+                r.get_row_between(node_name, window.start, window.end),
+            K8sMetricRepositoryVariant::NodeHour(r) =>
+                r.get_row_between(node_name, window.start, window.end),
+            K8sMetricRepositoryVariant::NodeDay(r) =>
+                r.get_row_between(node_name, window.start, window.end),
+            _ => Ok(vec![]),
+        }.unwrap_or_else(|err| {
+            tracing::warn!("Failed loading metrics for {}: {}", node_name, err);
+            vec![]
+        });
 
-        for m in metrics {
-            let point = UniversalMetricPointDto {
+        // Convert to universal struct — preserve missing values (None/null)
+        aggregated_points.extend(rows.into_iter().map(|m| {
+            UniversalMetricPointDto {
                 time: m.time,
                 cpu_memory: CommonMetricValuesDto {
                     cpu_usage_nano_cores: m.cpu_usage_nano_cores.map(|v| v as f64),
                     memory_usage_bytes: m.memory_usage_bytes.map(|v| v as f64),
+                    memory_working_set_bytes: m.memory_working_set_bytes.map(|v| v as f64),
+                    memory_rss_bytes: m.memory_rss_bytes.map(|v| v as f64),
+                    memory_page_faults: m.memory_page_faults.map(|v| v as f64),
                     ..Default::default()
                 },
                 filesystem: Some(FilesystemMetricDto {
@@ -64,32 +74,34 @@ pub async fn get_metric_k8s_cluster_raw(
                     ..Default::default()
                 }),
                 ..Default::default()
-            };
-
-            aggregated_points.push(point);
-        }
+            }
+        }));
     }
 
-    // Optional: group or average by timestamp to aggregate across nodes
-    let cluster_series = MetricSeriesDto {
-        key: "cluster".to_string(),
-        name: "cluster".to_string(),
-        scope: MetricScope::Cluster,
-        points: aggregate_cluster_points(aggregated_points),
-    };
-
+    // Aggregate multiple nodes → cluster values
+    let cluster_points = aggregate_cluster_points(aggregated_points);
 
     let response = MetricGetResponseDto {
         start: window.start,
         end: window.end,
-        scope: "cluster".to_string(),
+        scope: "cluster".into(),
         target: None,
         granularity: window.granularity,
-        series: vec![cluster_series],
+        series: vec![MetricSeriesDto {
+            key: "cluster".into(),
+            name: "cluster".into(),
+            scope: MetricScope::Cluster,
+            points: cluster_points,
+        }],
+        // Cluster API does not paginate output
+        total: None,
+        limit: None,
+        offset: None,
     };
 
     Ok(serde_json::to_value(response)?)
 }
+
 
 /// Summarize raw cluster resource usage (CPU, memory, storage, network)
 pub async fn get_metric_k8s_cluster_raw_summary(
@@ -181,7 +193,7 @@ pub async fn get_metric_k8s_cluster_cost(
     q: RangeQuery,
 ) -> Result<Value> {
     // 1️⃣ Get raw cluster metrics first
-    let mut raw_value = get_metric_k8s_cluster_raw(node_info_list, q).await?;
+    let raw_value = get_metric_k8s_cluster_raw(node_info_list, q).await?;
     let mut resp: MetricGetResponseDto = serde_json::from_value(raw_value)?;
 
     // 2️⃣ Compute cost per metric point
@@ -471,9 +483,119 @@ pub async fn get_metric_k8s_cluster_raw_efficiency(
 
     Ok(serde_json::to_value(dto)?)
 }
+pub fn aggregate_cluster_points(
+    points: Vec<UniversalMetricPointDto>,
+) -> Vec<UniversalMetricPointDto> {
+    use std::collections::BTreeMap;
 
+    let mut buckets: BTreeMap<DateTime<Utc>, Vec<UniversalMetricPointDto>> = BTreeMap::new();
 
-fn aggregate_cluster_points(points: Vec<UniversalMetricPointDto>) -> Vec<UniversalMetricPointDto> {
-    let mut map: HashMap<i64, Vec<UniversalMetricPointDto>> = HashMap::new(); for p in points { let ts = p.time.timestamp(); map.entry(ts).or_default().push(p); } let mut aggregated: Vec<UniversalMetricPointDto> = Vec::new(); for (ts, pts) in map { let len = pts.len() as f64; if len == 0.0 { continue; } let mut cpu_usage = 0.0; let mut mem_usage = 0.0; for p in &pts { cpu_usage += p.cpu_memory.cpu_usage_nano_cores.unwrap_or(0.0); mem_usage += p.cpu_memory.memory_usage_bytes.unwrap_or(0.0); } aggregated.push(UniversalMetricPointDto { time: chrono::DateTime::<Utc>::from_timestamp(ts, 0).unwrap(), cpu_memory: CommonMetricValuesDto { cpu_usage_nano_cores: Some(cpu_usage / len), memory_usage_bytes: Some(mem_usage / len), ..Default::default() }, ..Default::default() }); } aggregated.sort_by_key(|p| p.time); aggregated }
+    for p in points {
+        buckets.entry(p.time).or_default().push(p);
+    }
 
+    let mut result = Vec::with_capacity(buckets.len());
 
+    for (time, bucket) in buckets {
+        // CPU
+        let mut cpu_sum = 0.0;
+        let mut cpu_count = 0.0;
+        let mut cpu_core_sum = 0.0;
+        let mut cpu_core_count = 0.0;
+
+        // Memory
+        let mut mem_sum = 0.0;
+        let mut mem_count = 0.0;
+        let mut mem_working_sum = 0.0;
+        let mut mem_working_count = 0.0;
+        let mut mem_rss_sum = 0.0;
+        let mut mem_rss_count = 0.0;
+        let mut mem_pf_sum = 0.0;
+        let mut mem_pf_count = 0.0;
+
+        // Filesystem SUM
+        let mut fs_used_sum = 0.0;
+        let mut fs_capacity_sum = 0.0;
+
+        // Network SUM
+        let mut rx_sum = 0.0;
+        let mut tx_sum = 0.0;
+        let mut rx_err_sum = 0.0;
+        let mut tx_err_sum = 0.0;
+
+        for p in &bucket {
+            // CPU AVG
+            if let Some(v) = p.cpu_memory.cpu_usage_nano_cores {
+                cpu_sum += v;
+                cpu_count += 1.0;
+            }
+            if let Some(v) = p.cpu_memory.cpu_usage_core_nano_seconds {
+                cpu_core_sum += v;
+                cpu_core_count += 1.0;
+            }
+            // MEMORY AVG
+            if let Some(v) = p.cpu_memory.memory_usage_bytes {
+                mem_sum += v;
+                mem_count += 1.0;
+            }
+            if let Some(v) = p.cpu_memory.memory_working_set_bytes {
+                mem_working_sum += v;
+                mem_working_count += 1.0;
+            }
+            if let Some(v) = p.cpu_memory.memory_rss_bytes {
+                mem_rss_sum += v;
+                mem_rss_count += 1.0;
+            }
+            if let Some(v) = p.cpu_memory.memory_page_faults {
+                mem_pf_sum += v;
+                mem_pf_count += 1.0;
+            }
+
+            // FILESYSTEM SUM
+            if let Some(fs) = &p.filesystem {
+                fs_used_sum += fs.used_bytes.unwrap_or(0.0);
+                fs_capacity_sum += fs.capacity_bytes.unwrap_or(0.0);
+            }
+
+            // NETWORK SUM
+            if let Some(net) = &p.network {
+                rx_sum += net.rx_bytes.unwrap_or(0.0);
+                tx_sum += net.tx_bytes.unwrap_or(0.0);
+                rx_err_sum += net.rx_errors.unwrap_or(0.0);
+                tx_err_sum += net.tx_errors.unwrap_or(0.0);
+            }
+        }
+
+        result.push(UniversalMetricPointDto {
+            time,
+            cpu_memory: CommonMetricValuesDto {
+                cpu_usage_nano_cores: (cpu_count > 0.0).then(|| cpu_sum / cpu_count),
+                cpu_usage_core_nano_seconds: (cpu_core_count > 0.0)
+                    .then(|| cpu_core_sum / cpu_core_count),
+                memory_usage_bytes: (mem_count > 0.0).then(|| mem_sum / mem_count),
+                memory_working_set_bytes: (mem_working_count > 0.0)
+                    .then(|| mem_working_sum / mem_working_count),
+                memory_rss_bytes: (mem_rss_count > 0.0)
+                    .then(|| mem_rss_sum / mem_rss_count),
+                memory_page_faults: (mem_pf_count > 0.0)
+                    .then(|| mem_pf_sum / mem_pf_count),
+                ..Default::default()
+            },
+            filesystem: Some(FilesystemMetricDto {
+                used_bytes: Some(fs_used_sum),
+                capacity_bytes: Some(fs_capacity_sum),
+                ..Default::default()
+            }),
+            network: Some(NetworkMetricDto {
+                rx_bytes: Some(rx_sum),
+                tx_bytes: Some(tx_sum),
+                rx_errors: Some(rx_err_sum),
+                tx_errors: Some(tx_err_sum),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+    }
+
+    result
+}
