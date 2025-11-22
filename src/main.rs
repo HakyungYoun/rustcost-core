@@ -7,7 +7,6 @@ mod logging;
 mod domain;
 mod api;
 mod errors;
-mod handlers;
 mod routes;
 mod scheduler;
 pub mod core;
