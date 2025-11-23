@@ -15,6 +15,13 @@ use crate::core::persistence::storage_path::{info_version_path};
 pub struct InfoVersionFsAdapter;
 
 impl InfoFixedFsAdapterTrait<InfoVersionEntity> for InfoVersionFsAdapter {
+    fn new() -> Self {
+        Self {
+            // Replace with your actual initialization details
+            // Example: base_path or config location
+        }
+    }
+
     /// Reads the version information file into memory.
     /// Returns default values if the file does not exist.
     fn read(&self) -> Result<InfoVersionEntity> {

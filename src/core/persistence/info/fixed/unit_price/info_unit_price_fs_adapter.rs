@@ -14,6 +14,12 @@ use std::{
 pub struct InfoUnitPriceFsAdapter;
 
 impl InfoFixedFsAdapterTrait<InfoUnitPriceEntity> for InfoUnitPriceFsAdapter {
+    fn new() -> Self {
+        Self {
+            // Replace with your actual initialization details
+            // Example: base_path or config location
+        }
+    }
     /// Reads the unit price configuration from disk.
     /// Returns default values if the file does not exist.
     fn read(&self) -> Result<InfoUnitPriceEntity> {

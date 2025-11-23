@@ -1,9 +1,30 @@
 use anyhow::Result;
+use chrono::{Duration, Utc};
 use crate::scheduler::tasks::processors::retention;
+use crate::core::persistence::info::fixed::setting::info_setting_retention_repository_trait::InfoSettingRetentionRepository;
 
-pub async fn run() -> Result<()> {
-    retention::pod::task::run().await?;
-    retention::node::task::run().await?;
-    retention::container::task::run().await?;
-    Ok(())
+pub struct RetentionTask<R: InfoSettingRetentionRepository> {
+    pub settings_repo: R,
+}
+
+impl<R: InfoSettingRetentionRepository> RetentionTask<R> {
+    pub fn new(repo: R) -> Self {
+        Self { settings_repo: repo }
+    }
+
+    pub async fn run(&self) -> Result<()> {
+        let settings = self.settings_repo.read()?;  // Load config
+
+        let now = Utc::now();
+        let minute_before = now - Duration::days(settings.minute_retention_days.into());
+        let hour_before   = now - Duration::days((settings.hour_retention_months * 30).into());
+        let day_before    = now - Duration::days((settings.day_retention_years * 365).into());
+
+        // Pass thresholds to individual processors later!
+        retention::pod::task::run().await?;
+        retention::node::task::run().await?;
+        retention::container::task::run().await?;
+
+        Ok(())
+    }
 }

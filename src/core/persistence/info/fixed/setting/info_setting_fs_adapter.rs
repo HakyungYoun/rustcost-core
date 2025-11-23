@@ -16,6 +16,14 @@ use crate::core::persistence::storage_path::info_setting_path;
 pub struct InfoSettingFsAdapter;
 
 impl InfoFixedFsAdapterTrait<InfoSettingEntity> for InfoSettingFsAdapter {
+
+     fn new() -> Self {
+        Self {
+            // Replace with your actual initialization details
+            // Example: base_path or config location
+        }
+    }
+
     /// Reads the settings file into memory.
     /// Returns default values if the file does not exist.
     fn read(&self) -> Result<InfoSettingEntity> {
