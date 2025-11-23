@@ -9,14 +9,14 @@ use crate::core::client::k8s::client_k8s_pod::{fetch_pod_by_name_and_namespace, 
 use crate::core::client::k8s::util::{build_client, read_token};
 use crate::core::persistence::info::k8s::container::info_container_api_repository_trait::InfoContainerApiRepository;
 use crate::core::persistence::info::k8s::container::info_container_entity::InfoContainerEntity;
+use crate::core::persistence::info::k8s::container::info_container_repository::InfoContainerRepository;
 use crate::core::persistence::info::path::info_k8s_container_dir_path;
 use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
-use crate::domain::info::repository::info_k8s_container_api_repository::InfoK8sContainerApiRepositoryImpl;
 use std::fs;
 
 /// Fetch one container info by its unique ID, with cache + refresh if stale.
 pub async fn get_info_k8s_container(container_id: String) -> Result<InfoContainerEntity> {
-    let repo = InfoK8sContainerApiRepositoryImpl::default();
+    let repo = InfoContainerRepository::new();
 
     // 1️⃣ Try reading existing entity from repo
     if let Ok(existing) = repo.read(&container_id) {
@@ -85,7 +85,7 @@ pub async fn get_info_k8s_container(container_id: String) -> Result<InfoContaine
 pub async fn list_k8s_containers(filter: K8sListQuery) -> Result<Vec<InfoContainerEntity>> {
     let token = read_token()?;
     let client = build_client()?;
-    let repo = InfoK8sContainerApiRepositoryImpl::default();
+    let repo = InfoContainerRepository::new();
 
     let mut cached_entities = Vec::new();
     let mut expired_or_missing = false;
@@ -195,7 +195,7 @@ pub async fn patch_info_k8s_container(
     id: String,
     patch: InfoK8sContainerPatchRequest,
 ) -> Result<serde_json::Value> {
-    let repo = InfoK8sContainerApiRepositoryImpl::default();
+    let repo = InfoContainerRepository::new();
 
     // 1️⃣ Load existing record
     let mut entity = repo.read(&id)

@@ -34,8 +34,8 @@ fn fetch_pod_points(
         K8sMetricRepositoryVariant::PodMinute(r) => {
             r.get_row_between(window.start, window.end, pod_uid, None, None)
         }
-        K8sMetricRepositoryVariant::PodHour(r) => r.get_row_between(pod_uid, window.start, window.end),
-        K8sMetricRepositoryVariant::PodDay(r) => r.get_row_between(pod_uid, window.start, window.end),
+        K8sMetricRepositoryVariant::PodHour(r) => r.get_row_between(window.start, window.end, pod_uid, None, None),
+        K8sMetricRepositoryVariant::PodDay(r) => r.get_row_between(window.start, window.end, pod_uid, None, None),
         _ => Ok(vec![]),
     }?;
 

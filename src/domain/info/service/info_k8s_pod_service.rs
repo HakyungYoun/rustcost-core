@@ -4,16 +4,16 @@ use crate::core::client::k8s::client_k8s_pod_mapper::map_pod_to_info_pod_entity;
 use crate::core::client::k8s::util::{build_client, read_token};
 use crate::core::persistence::info::k8s::pod::info_pod_api_repository_trait::InfoPodApiRepository;
 use crate::core::persistence::info::k8s::pod::info_pod_entity::InfoPodEntity;
+use crate::core::persistence::info::k8s::pod::info_pod_repository::InfoPodRepository;
 use crate::core::persistence::info::path::info_k8s_pod_dir_path;
 use crate::domain::info::dto::info_k8s_pod_patch_request::InfoK8sPodPatchRequest;
-use crate::domain::info::repository::info_k8s_pod_api_repository::InfoK8sPodApiRepositoryImpl;
 use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
 use std::fs;
 use tracing::debug;
 
 pub async fn get_info_k8s_pod(pod_uid: String) -> Result<InfoPodEntity> {
-    let repo = InfoK8sPodApiRepositoryImpl::default();
+    let repo = InfoPodRepository::new();
 
     // 1️⃣ Try read existing entity from repo
     if let Ok(existing) = repo.read(&pod_uid) {
@@ -74,7 +74,7 @@ pub async fn get_info_k8s_pod(pod_uid: String) -> Result<InfoPodEntity> {
 pub async fn list_k8s_pods(filter: K8sListQuery) -> Result<Vec<InfoPodEntity>> {
     let token = read_token()?;
     let client = build_client()?;
-    let repo = InfoK8sPodApiRepositoryImpl::default();
+    let repo = InfoPodRepository::new();
 
     let mut cached_entities = Vec::new();
     let mut expired_or_missing = false;
@@ -148,7 +148,7 @@ pub async fn patch_info_k8s_pod(
     id: String,
     patch: InfoK8sPodPatchRequest,
 ) -> Result<serde_json::Value> {
-    let repo = InfoK8sPodApiRepositoryImpl::default();
+    let repo = InfoPodRepository::new();
 
     // 1️⃣ Load existing record
     let mut entity = repo

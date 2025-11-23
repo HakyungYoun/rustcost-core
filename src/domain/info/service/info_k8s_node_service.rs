@@ -3,16 +3,16 @@ use crate::core::client::k8s::client_k8s_node_mapper::map_node_to_node_info_enti
 use crate::core::client::k8s::util::{build_client, read_token};
 use crate::core::persistence::info::k8s::node::info_node_api_repository_trait::InfoNodeApiRepository;
 use crate::core::persistence::info::k8s::node::info_node_entity::InfoNodeEntity;
+use crate::core::persistence::info::k8s::node::info_node_repository::InfoNodeRepository;
 use crate::core::persistence::info::path::info_k8s_node_dir_path;
 use crate::domain::info::dto::info_k8s_node_patch_request::InfoK8sNodePatchRequest;
-use crate::domain::info::repository::info_k8s_node_api_repository::InfoK8sNodeApiRepositoryImpl;
 use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
 use std::fs;
 use tracing::debug;
 
 pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
-    let repo = InfoK8sNodeApiRepositoryImpl::default();
+    let repo = InfoNodeRepository::new();
 
     // Load existing entity
     let entity = repo.read(&node_name)?;
@@ -60,7 +60,7 @@ pub async fn list_k8s_nodes() -> Result<Vec<InfoNodeEntity>> {
 
     let token = read_token()?;
     let client = build_client()?;
-    let repo = InfoK8sNodeApiRepositoryImpl::default();
+    let repo = InfoNodeRepository::new();
 
     let mut cached_entities = Vec::new();
     let mut expired_or_missing = false;
@@ -132,7 +132,7 @@ pub async fn patch_info_k8s_node(
     id: String,
     patch: InfoK8sNodePatchRequest,
 ) -> Result<serde_json::Value> {
-    let repo = InfoK8sNodeApiRepositoryImpl::default();
+    let repo = InfoNodeRepository::new();
 
     // 1️⃣ Load existing record
     let mut entity = repo

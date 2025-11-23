@@ -1,28 +1,27 @@
 
-use crate::domain::metric::k8s::container::repository::metric_container_day_api_repository::MetricContainerDayApiRepositoryImpl;
-use crate::domain::metric::k8s::container::repository::metric_container_hour_api_repository::MetricContainerHourApiRepositoryImpl;
-use crate::domain::metric::k8s::container::repository::metric_container_minute_api_repository::MetricContainerMinuteApiRepositoryImpl;
-use crate::domain::metric::k8s::node::repository::metric_node_day_api_repository::MetricNodeDayApiRepositoryImpl;
-use crate::domain::metric::k8s::node::repository::metric_node_hour_api_repository::MetricNodeHourApiRepositoryImpl;
-use crate::domain::metric::k8s::node::repository::metric_node_minute_api_repository::MetricNodeMinuteApiRepositoryImpl;
-use crate::domain::metric::k8s::pod::repository::metric_pod_day_api_repository::MetricPodDayApiRepositoryImpl;
-use crate::domain::metric::k8s::pod::repository::metric_pod_hour_api_repository::MetricPodHourApiRepositoryImpl;
-use crate::domain::metric::k8s::pod::repository::metric_pod_minute_api_repository::MetricPodMinuteApiRepositoryImpl;
+use crate::core::persistence::metrics::k8s::container::day::metric_container_day_repository::MetricContainerDayRepository;
+use crate::core::persistence::metrics::k8s::container::hour::metric_container_hour_repository::MetricContainerHourRepository;
+use crate::core::persistence::metrics::k8s::container::minute::metric_container_minute_repository::MetricContainerMinuteRepository;
+use crate::core::persistence::metrics::k8s::node::day::metric_node_day_repository::MetricNodeDayRepository;
+use crate::core::persistence::metrics::k8s::node::hour::metric_node_hour_repository::MetricNodeHourRepository;
+use crate::core::persistence::metrics::k8s::node::minute::metric_node_minute_repository::MetricNodeMinuteRepository;
+use crate::core::persistence::metrics::k8s::pod::day::metric_pod_day_repository::MetricPodDayRepository;
+use crate::core::persistence::metrics::k8s::pod::hour::metric_pod_hour_repository::MetricPodHourRepository;
+use crate::core::persistence::metrics::k8s::pod::minute::metric_pod_minute_repository::MetricPodMinuteRepository;
 
-#[derive(Debug)]
 pub enum K8sMetricRepositoryVariant {
     // Node
-    NodeMinute(MetricNodeMinuteApiRepositoryImpl),
-    NodeHour(MetricNodeHourApiRepositoryImpl),
-    NodeDay(MetricNodeDayApiRepositoryImpl),
+    NodeMinute(MetricNodeMinuteRepository),
+    NodeHour(MetricNodeHourRepository),
+    NodeDay(MetricNodeDayRepository),
 
     // Pod
-    PodMinute(MetricPodMinuteApiRepositoryImpl),
-    PodHour(MetricPodHourApiRepositoryImpl),
-    PodDay(MetricPodDayApiRepositoryImpl),
+    PodMinute(MetricPodMinuteRepository),
+    PodHour(MetricPodHourRepository),
+    PodDay(MetricPodDayRepository),
 
     // Container
-    ContainerMinute(MetricContainerMinuteApiRepositoryImpl),
-    ContainerHour(MetricContainerHourApiRepositoryImpl),
-    ContainerDay(MetricContainerDayApiRepositoryImpl),
+    ContainerMinute(MetricContainerMinuteRepository),
+    ContainerHour(MetricContainerHourRepository),
+    ContainerDay(MetricContainerDayRepository),
 }

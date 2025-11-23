@@ -22,9 +22,11 @@ pub trait MetricPodDayApiRepository: Send + Sync {
 
     fn get_row_between(
         &self,
-        pod_key: &str,
         start: DateTime<Utc>,
         end: DateTime<Utc>,
+        pod_name: &str,
+        limit: Option<usize>,
+        offset: Option<usize>,
     ) -> Result<Vec<MetricPodEntity>>;
 }
 

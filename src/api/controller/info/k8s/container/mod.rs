@@ -6,7 +6,6 @@ use crate::api::dto::info_dto::K8sListQuery;
 use crate::api::util::validation_ext::ValidateRequestExt;
 use crate::core::persistence::info::k8s::container::info_container_entity::InfoContainerEntity;
 use crate::domain::info::dto::info_k8s_container_patch_request::InfoK8sContainerPatchRequest;
-use crate::domain::info::dto::info_setting_upsert_request::InfoSettingUpsertRequest;
 use crate::domain::info::service::info_k8s_container_service;
 
 pub async fn get_info_k8s_container(

@@ -3,3 +3,4 @@ pub mod metric_container_minute_api_repository_trait;
 pub mod metric_container_minute_collector_repository_trait;
 pub mod metric_container_minute_processor_repository_trait;
 pub mod metric_container_minute_retention_repository_traits;
+pub mod metric_container_minute_repository;
