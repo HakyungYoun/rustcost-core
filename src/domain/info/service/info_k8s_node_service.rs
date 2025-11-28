@@ -1,4 +1,3 @@
-use crate::core::client::kube_client::build_kube_client;
 use crate::core::client::nodes::{fetch_node_by_name, fetch_nodes};
 use crate::core::client::mappers::map_node_to_info_entity;
 use crate::core::persistence::info::k8s::node::info_node_api_repository_trait::InfoNodeApiRepository;
@@ -11,6 +10,7 @@ use chrono::{Duration, Utc};
 use std::fs;
 use tracing::debug;
 use validator::Validate;
+use crate::core::client::kube_client::build_kube_client;
 
 pub async fn get_info_k8s_node(node_name: String) -> Result<InfoNodeEntity> {
     let now = Utc::now();
