@@ -67,6 +67,10 @@ use crate::api::dto::metrics_dto::RangeQuery;
 
 // logs
 use crate::core::persistence::logs::log_repository::LogRepositoryImpl;
+use crate::core::state::runtime::alerts::alert_runtime_state_manager::AlertRuntimeStateManager;
+use crate::core::state::runtime::alerts::alert_runtime_state_repository::AlertRuntimeStateRepository;
+use crate::core::state::runtime::k8s::k8s_runtime_state_manager::K8sRuntimeStateManager;
+use crate::core::state::runtime::k8s::k8s_runtime_state_repository::K8sRuntimeStateRepository;
 use crate::domain::system::service::log_service::LogService;
 
 //
@@ -96,15 +100,30 @@ pub struct AppState {
     pub info_service: Arc<InfoService>,
     pub info_k8s_service: Arc<InfoK8sService>,
     pub metric_service: Arc<MetricService>,
+
+    // runtime state managers
+    pub k8s_state: Arc<K8sRuntimeStateManager<K8sRuntimeStateRepository>>,
+    pub alerts: Arc<AlertRuntimeStateManager<AlertRuntimeStateRepository>>,
 }
 
 pub fn build_app_state() -> AppState {
+    // Create repositories
+    let k8s_repo = K8sRuntimeStateRepository::new().shared();
+    let alert_repo = AlertRuntimeStateRepository::new().shared();
+
+    // Managers wrap repositories
+    let k8s_state = Arc::new(K8sRuntimeStateManager::new(k8s_repo));
+    let alerts = Arc::new(AlertRuntimeStateManager::new(alert_repo));
+
     AppState {
         log_service: Arc::new(LogService::new(LogRepositoryImpl::new())),
         system_service: Arc::new(SystemService::default()),
         info_service: Arc::new(InfoService::default()),
         info_k8s_service: Arc::new(InfoK8sService::default()),
         metric_service: Arc::new(MetricService::default()),
+
+        k8s_state,
+        alerts,
     }
 }
 

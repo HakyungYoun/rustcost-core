@@ -13,7 +13,8 @@ pub fn app_router() -> Router<AppState> {
     let api_v1 = Router::new()
         .nest("/metrics", crate::api::routes::metrics_routes::metrics_routes())
         .nest("/info", crate::api::routes::info_routes::info_routes())
-        .nest("/system", crate::api::routes::system_routes::system_routes());
+        .nest("/system", crate::api::routes::system_routes::system_routes())
+        .nest("/states", crate::api::routes::state_routes::state_routes());
 
     Router::new()
         // Root route

@@ -10,3 +10,4 @@
 pub mod constants;
 pub mod persistence;
 pub mod client;
+pub mod state;
