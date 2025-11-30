@@ -17,7 +17,7 @@ use chrono::{DateTime, Utc};
 use serde_json::Value;
 
 pub async fn get_metric_k8s_cluster_raw(
-    node_info_list: Vec<InfoNodeEntity>,
+    node_names: Vec<String>,
     q: RangeQuery,
 ) -> Result<Value, anyhow::Error> {
 
@@ -26,10 +26,7 @@ pub async fn get_metric_k8s_cluster_raw(
 
     let mut aggregated_points: Vec<UniversalMetricPointDto> = Vec::new();
 
-    for node in &node_info_list {
-        let Some(node_name) = &node.node_name else {
-            continue; // skip invalid node entries
-        };
+    for node_name in &node_names {
 
         // Load per-node metric rows
         let rows = match &repo {
@@ -103,11 +100,11 @@ pub async fn get_metric_k8s_cluster_raw(
 
 /// Summarize raw cluster resource usage (CPU, memory, storage, network)
 pub async fn get_metric_k8s_cluster_raw_summary(
-    node_info_list: Vec<InfoNodeEntity>,
+    node_names: Vec<String>,
     q: RangeQuery,
 ) -> Result<Value> {
     // 1️⃣ Retrieve the raw metrics for the time range
-    let raw_value = get_metric_k8s_cluster_raw(node_info_list.clone(), q.clone()).await?;
+    let raw_value = get_metric_k8s_cluster_raw(node_names.clone(), q.clone()).await?;
     let cluster_metrics: MetricGetResponseDto = serde_json::from_value(raw_value)?;
 
     // 2️⃣ Prepare accumulators
@@ -168,7 +165,7 @@ pub async fn get_metric_k8s_cluster_raw_summary(
         max_storage_gb: max_storage,
         avg_network_gb: total_network / point_count,
         max_network_gb: max_network,
-        node_count: node_info_list.len(),
+        node_count: node_names.len(),
     };
 
     // 5️⃣ Wrap in response DTO
@@ -186,12 +183,12 @@ pub async fn get_metric_k8s_cluster_raw_summary(
 
 /// Compute derived cluster costs based on node metrics and unit prices
 pub async fn get_metric_k8s_cluster_cost(
-    node_info_list: Vec<InfoNodeEntity>,
+    node_names: Vec<String>,
     unit_prices: InfoUnitPriceEntity,
     q: RangeQuery,
 ) -> Result<Value> {
     // 1️⃣ Get raw cluster metrics first
-    let raw_value = get_metric_k8s_cluster_raw(node_info_list, q).await?;
+    let raw_value = get_metric_k8s_cluster_raw(node_names, q).await?;
     let mut resp: MetricGetResponseDto = serde_json::from_value(raw_value)?;
 
     // 2️⃣ Compute cost per metric point
@@ -250,12 +247,12 @@ pub async fn get_metric_k8s_cluster_cost(
 
 /// Summarize total cluster cost across all time points and resources
 pub async fn get_metric_k8s_cluster_cost_summary(
-    node_info_list: Vec<InfoNodeEntity>,
+    node_names: Vec<String>,
     unit_prices: InfoUnitPriceEntity,
     q: RangeQuery,
 ) -> Result<Value> {
     // 1️⃣ Get detailed cluster cost metrics
-    let raw_value = get_metric_k8s_cluster_cost(node_info_list, unit_prices.clone(), q).await?;
+    let raw_value = get_metric_k8s_cluster_cost(node_names, unit_prices.clone(), q).await?;
     let cluster_cost: MetricGetResponseDto = serde_json::from_value(raw_value)?;
 
     // 2️⃣ Aggregate totals
@@ -323,13 +320,13 @@ pub async fn get_metric_k8s_cluster_cost_summary(
 /// Analyze cluster cost trend (growth, regression, prediction)
 /// Analyze cluster cost trend (growth, regression, prediction)
 pub async fn get_metric_k8s_cluster_cost_trend(
-    node_info_list: Vec<InfoNodeEntity>,
+    node_names: Vec<String>,
     unit_prices: InfoUnitPriceEntity,
     q: RangeQuery,
 ) -> Result<Value> {
 
     // 1️⃣ Fetch cost-enriched metrics
-    let raw_value = get_metric_k8s_cluster_cost(node_info_list, unit_prices.clone(), q).await?;
+    let raw_value = get_metric_k8s_cluster_cost(node_names, unit_prices.clone(), q).await?;
     let cluster_cost: MetricGetResponseDto = serde_json::from_value(raw_value)?;
 
     // 2️⃣ Flatten all points into a unified list
@@ -421,10 +418,11 @@ pub async fn get_metric_k8s_cluster_cost_trend(
 /// Compute cluster-level resource efficiency (CPU, memory, storage)
 pub async fn get_metric_k8s_cluster_raw_efficiency(
     node_info_list: Vec<InfoNodeEntity>,
+    node_names: Vec<String>,
     q: RangeQuery,
 ) -> Result<Value> {
     // 1️⃣ Get summarized usage metrics
-    let raw_value = get_metric_k8s_cluster_raw_summary(node_info_list.clone(), q.clone()).await?;
+    let raw_value = get_metric_k8s_cluster_raw_summary(node_names.clone(), q.clone()).await?;
     let summary: MetricRawSummaryResponseDto = serde_json::from_value(raw_value)?;
 
     // 2️⃣ Compute total allocatable capacity from node info

@@ -19,6 +19,9 @@ pub enum AppError {
 
     #[error("Not found: {0}")]
     NotFound(String),
+
+    #[error("Not Resync: {0}")]
+    NotResynced(String),
 }
 
 /// Helper for mapping any unknown error into internal error
@@ -35,6 +38,7 @@ impl IntoResponse for AppError {
             AppError::K8sApiError(_) => StatusCode::BAD_GATEWAY,
             AppError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
+            AppError::NotResynced(_) => StatusCode::SERVICE_UNAVAILABLE, // <-- IMPORTANT
         };
 
         // String provided by thiserror → safe JSON message

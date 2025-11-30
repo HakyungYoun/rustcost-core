@@ -110,7 +110,7 @@ pub struct AppState {
 
     // runtime state managers
     pub k8s_state: Arc<K8sRuntimeStateManager<K8sRuntimeStateRepository>>,
-    pub alerts: Arc<AlertRuntimeStateManager<AlertRuntimeStateRepository>>,
+    pub alerts: Arc<AlertRuntimeStateManager<AlertRuntimeStateRepository>>
 }
 
 pub fn build_app_state() -> AppState {
@@ -313,51 +313,53 @@ impl MetricService {
     pub async fn get_metric_k8s_cluster_raw(
         &self,
         q: RangeQuery,
+        node_names: Vec<String>
     ) -> anyhow::Result<serde_json::Value> {
-        let nodes = list_k8s_nodes().await?;
-        get_metric_k8s_cluster_raw(nodes, q).await
+        get_metric_k8s_cluster_raw(node_names, q).await
     }
 
     pub async fn get_metric_k8s_cluster_raw_summary(
         &self,
         q: RangeQuery,
+        node_names: Vec<String>
     ) -> anyhow::Result<serde_json::Value> {
         let nodes = list_k8s_nodes().await?;
-        get_metric_k8s_cluster_raw_summary(nodes, q).await
+        get_metric_k8s_cluster_raw_summary(node_names, q).await
     }
 
     pub async fn get_metric_k8s_cluster_raw_efficiency(
         &self,
         q: RangeQuery,
+        node_names: Vec<String>
     ) -> anyhow::Result<serde_json::Value> {
         let nodes = list_k8s_nodes().await?;
-        get_metric_k8s_cluster_raw_efficiency(nodes, q).await
+        get_metric_k8s_cluster_raw_efficiency(nodes, node_names, q).await
     }
 
     pub async fn get_metric_k8s_cluster_cost(
         &self,
         q: RangeQuery,
+        node_names: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
-        let nodes = list_k8s_nodes().await?;
         let costs = get_info_unit_prices().await?;
-        get_metric_k8s_cluster_cost(nodes, costs, q).await
+        get_metric_k8s_cluster_cost(node_names, costs, q).await
     }
 
     pub async fn get_metric_k8s_cluster_cost_summary(
         &self,
         q: RangeQuery,
+        node_names: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
-        let nodes = list_k8s_nodes().await?;
         let costs = get_info_unit_prices().await?;
-        get_metric_k8s_cluster_cost_summary(nodes, costs, q).await
+        get_metric_k8s_cluster_cost_summary(node_names, costs, q).await
     }
 
     pub async fn get_metric_k8s_cluster_cost_trend(
         &self,
         q: RangeQuery,
+        node_names: Vec<String>,
     ) -> anyhow::Result<serde_json::Value> {
-        let nodes = list_k8s_nodes().await?;
         let costs = get_info_unit_prices().await?;
-        get_metric_k8s_cluster_cost_trend(nodes, costs, q).await
+        get_metric_k8s_cluster_cost_trend(node_names, costs, q).await
     }
 }

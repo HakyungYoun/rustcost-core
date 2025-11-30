@@ -2,6 +2,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use crate::core::state::runtime::k8s::k8s_runtime_state::{K8sRuntimeState, RuntimePod};
 use crate::core::state::runtime::k8s::k8s_runtime_state_repository_trait::K8sRuntimeStateRepositoryTrait;
+use crate::errors::AppError;
 
 pub struct K8sRuntimeStateManager<R: K8sRuntimeStateRepositoryTrait> {
     pub(crate) repo: Arc<R>,
@@ -40,6 +41,22 @@ impl<R: K8sRuntimeStateRepositoryTrait> K8sRuntimeStateManager<R> {
     pub async fn mark_error(&self, message: String) {
         self.repo.update(|state| state.mark_error(message)).await;
     }
+
+    pub async fn ensure_resynced(&self) -> Result<(), AppError> {
+        let state = self.repo.get().await;
+
+        if let Some(ts) = state.last_discovered_at {
+            let hours = (Utc::now() - ts).num_hours();
+            if hours < 3 {
+                return Ok(());
+            }
+        }
+
+        Err(AppError::NotResynced(
+            "K8s runtime state not resynchronized (older than 3 hours)".into(),
+        ))
+    }
+
 
     // ===============================================
     // 1. Is last discovery recent (< 3 hours)

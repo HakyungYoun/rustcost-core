@@ -13,48 +13,73 @@ impl K8sClusterMetricsController {
         State(state): State<AppState>,
         Query(q): Query<RangeQuery>,
     ) -> Result<Json<ApiResponse<Value>>, AppError> {
-        to_json(state.metric_service.get_metric_k8s_cluster_raw(q).await)
+
+        state.k8s_state.ensure_resynced().await?;
+        let node_names = state.k8s_state.get_nodes().await;
+
+        to_json(
+            state
+                .metric_service
+                .get_metric_k8s_cluster_raw(q, node_names)
+                .await,
+        )
     }
 
     pub async fn get_metric_k8s_cluster_raw_summary(
         State(state): State<AppState>,
         Query(q): Query<RangeQuery>,
     ) -> Result<Json<ApiResponse<Value>>, AppError> {
+
+        state.k8s_state.ensure_resynced().await?;
+        let node_names = state.k8s_state.get_nodes().await;
+
         to_json(
             state
                 .metric_service
-                .get_metric_k8s_cluster_raw_summary(q)
+                .get_metric_k8s_cluster_raw_summary(q, node_names)
                 .await,
         )
     }
 
     pub async fn get_metric_k8s_cluster_cost(
         State(state): State<AppState>,
-        Query(q): Query<RangeQuery>,
+        Query(q): Query<RangeQuery>
     ) -> Result<Json<ApiResponse<Value>>, AppError> {
-        to_json(state.metric_service.get_metric_k8s_cluster_cost(q).await)
+
+        state.k8s_state.ensure_resynced().await?;
+        let node_names = state.k8s_state.get_nodes().await;
+
+        to_json(state.metric_service.get_metric_k8s_cluster_cost(q, node_names).await)
     }
 
     pub async fn get_metric_k8s_cluster_cost_summary(
         State(state): State<AppState>,
-        Query(q): Query<RangeQuery>,
+        Query(q): Query<RangeQuery>
     ) -> Result<Json<ApiResponse<Value>>, AppError> {
+
+        state.k8s_state.ensure_resynced().await?;
+        let node_names = state.k8s_state.get_nodes().await;
+
         to_json(
             state
                 .metric_service
-                .get_metric_k8s_cluster_cost_summary(q)
+                .get_metric_k8s_cluster_cost_summary(q, node_names)
                 .await,
         )
     }
 
     pub async fn get_metric_k8s_cluster_cost_trend(
         State(state): State<AppState>,
-        Query(q): Query<RangeQuery>,
+        Query(q): Query<RangeQuery>
     ) -> Result<Json<ApiResponse<Value>>, AppError> {
+
+        state.k8s_state.ensure_resynced().await?;
+        let node_names = state.k8s_state.get_nodes().await;
+
         to_json(
             state
                 .metric_service
-                .get_metric_k8s_cluster_cost_trend(q)
+                .get_metric_k8s_cluster_cost_trend(q, node_names)
                 .await,
         )
     }
@@ -63,10 +88,14 @@ impl K8sClusterMetricsController {
         State(state): State<AppState>,
         Query(q): Query<RangeQuery>,
     ) -> Result<Json<ApiResponse<Value>>, AppError> {
+
+        state.k8s_state.ensure_resynced().await?;
+        let node_names = state.k8s_state.get_nodes().await;
+
         to_json(
             state
                 .metric_service
-                .get_metric_k8s_cluster_raw_efficiency(q)
+                .get_metric_k8s_cluster_raw_efficiency(q, node_names)
                 .await,
         )
     }
