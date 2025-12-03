@@ -21,6 +21,7 @@ use crate::domain::metric::k8s::common::dto::metric_k8s_raw_summary_dto::{
 use crate::domain::metric::k8s::common::util::k8s_metric_determine_granularity::determine_granularity;
 use std::collections::HashMap;
 use tracing::log::warn;
+use crate::core::util::cost_util::CostUtil;
 
 pub const BYTES_PER_GB: f64 = 1_073_741_824.0;
 
@@ -166,34 +167,99 @@ pub fn build_raw_summary_value(
     Ok(serde_json::to_value(dto)?)
 }
 
+fn granularity_interval_hours(granularity: &MetricGranularity) -> f64 {
+    match granularity {
+        MetricGranularity::Minute => 1.0 / 60.0,
+        MetricGranularity::Hour => 1.0,
+        MetricGranularity::Day => 24.0,
+    }
+}
+
+fn point_interval_hours(points: &[UniversalMetricPointDto], idx: usize, default: f64) -> f64 {
+    if let Some(next) = points.get(idx + 1) {
+        let delta_seconds = next.time.signed_duration_since(points[idx].time).num_seconds();
+        if delta_seconds > 0 {
+            return delta_seconds as f64 / 3600.0;
+        }
+    }
+    default
+}
+fn point_interval_hours_from_timestamps(
+    timestamps: &[DateTime<Utc>],
+    idx: usize,
+    default_interval_hours: f64,
+) -> f64 {
+    if timestamps.len() < 2 {
+        return default_interval_hours;
+    }
+
+    // First point → interval = next - current
+    if idx == 0 {
+        return (timestamps[1] - timestamps[0]).num_seconds() as f64 / 3600.0;
+    }
+
+    // Otherwise use difference between this point and previous point
+    let seconds = (timestamps[idx] - timestamps[idx - 1]).num_seconds();
+
+    if seconds > 0 {
+        seconds as f64 / 3600.0
+    } else {
+        // Fallback for clock drift, identical timestamps, errors, etc
+        default_interval_hours
+    }
+}
 pub fn apply_costs(response: &mut MetricGetResponseDto, unit_prices: &InfoUnitPriceEntity) {
+    let default_interval_hours = granularity_interval_hours(&response.granularity);
+
     for series in &mut response.series {
-        for point in &mut series.points {
-            let cpu_cost_usd = point.cpu_memory.cpu_usage_nano_cores.map(|nano| {
-                let cores = nano / 1_000_000_000.0;
-                cores * (unit_prices.cpu_core_hour / 3600.0)
-            });
+        // Precompute timestamps (avoids borrow conflicts)
+        let timestamps: Vec<_> = series.points.iter().map(|p| p.time).collect();
 
-            let memory_cost_usd = point.cpu_memory.memory_usage_bytes.map(|bytes| {
-                let gb = bytes / BYTES_PER_GB;
-                gb * (unit_prices.memory_gb_hour / 3600.0)
-            });
+        for (idx, point) in series.points.iter_mut().enumerate() {
+            let interval_hours =
+                point_interval_hours_from_timestamps(&timestamps, idx, default_interval_hours);
 
-            let storage_cost_usd = point
-                .filesystem
+            // ---- CPU ----
+            let cpu_cost_usd = point.cpu_memory.cpu_usage_nano_cores
+                .map(|nano| CostUtil::compute_cpu_cost(nano, interval_hours, unit_prices));
+
+            // ---- MEMORY ----
+            let memory_cost_usd = point.cpu_memory.memory_usage_bytes
+                .map(|bytes| CostUtil::compute_memory_cost(bytes, interval_hours, unit_prices));
+
+            // ---- STORAGE (ephemeral + persistent) ----
+            let ephemeral_gb_hours = point.filesystem
                 .as_ref()
                 .and_then(|fs| fs.used_bytes)
-                .map(|bytes| {
-                    let gb = bytes / BYTES_PER_GB;
-                    gb * (unit_prices.storage_gb_hour / 3600.0)
-                });
+                .map(|b| CostUtil::bytes_to_gb_hours(b, interval_hours))
+                .unwrap_or(0.0);
 
+            let persistent_gb_hours = point.storage
+                .as_ref()
+                .and_then(|s| s.persistent.as_ref())
+                .and_then(|fs| fs.used_bytes)
+                .map(|b| CostUtil::bytes_to_gb_hours(b, interval_hours))
+                .unwrap_or(0.0);
+
+            let total_storage_gb_hours = ephemeral_gb_hours + persistent_gb_hours;
+            let storage_cost_usd = Some(total_storage_gb_hours * unit_prices.storage_gb_hour);
+
+            // ---- NETWORK ----
+            let network_cost_usd = point.network.as_ref().map(|n| {
+                let rx_gb = CostUtil::bytes_to_gb(n.rx_bytes.unwrap_or(0.0));
+                let tx_gb = CostUtil::bytes_to_gb(n.tx_bytes.unwrap_or(0.0));
+                (rx_gb + tx_gb) * unit_prices.network_external_gb
+            }).unwrap_or(0.0);
+
+            // ---- TOTAL COST ----
             let total_cost_usd = Some(
                 cpu_cost_usd.unwrap_or(0.0)
                     + memory_cost_usd.unwrap_or(0.0)
-                    + storage_cost_usd.unwrap_or(0.0),
+                    + storage_cost_usd.unwrap_or(0.0)
+                    + network_cost_usd
             );
 
+            // Store into point
             point.cost = Some(CostMetricDto {
                 total_cost_usd,
                 cpu_cost_usd,
@@ -204,6 +270,7 @@ pub fn apply_costs(response: &mut MetricGetResponseDto, unit_prices: &InfoUnitPr
     }
 }
 
+
 pub fn build_cost_summary_dto(
     metrics: &MetricGetResponseDto,
     scope: MetricScope,
@@ -211,18 +278,21 @@ pub fn build_cost_summary_dto(
     unit_prices: &InfoUnitPriceEntity,
 ) -> MetricCostSummaryResponseDto {
     let mut summary = MetricCostSummaryDto::default();
+    let default_interval_hours = granularity_interval_hours(&metrics.granularity);
 
     for series in &metrics.series {
-        for point in &series.points {
+        for (idx, point) in series.points.iter().enumerate() {
+            let interval_hours = point_interval_hours(&series.points, idx, default_interval_hours);
+
             if let Some(cost) = &point.cost {
-                summary.cpu_cost_usd += cost.cpu_cost_usd.unwrap_or(0.0);
-                summary.memory_cost_usd += cost.memory_cost_usd.unwrap_or(0.0);
+                let cpu_cost = cost.cpu_cost_usd.unwrap_or(0.0);
+                let memory_cost = cost.memory_cost_usd.unwrap_or(0.0);
 
                 let ephemeral_cost = point
                     .filesystem
                     .as_ref()
                     .and_then(|fs| fs.used_bytes)
-                    .map(|b| b / BYTES_PER_GB * unit_prices.storage_gb_hour / 3600.0)
+                    .map(|b| (b / BYTES_PER_GB) * interval_hours * unit_prices.storage_gb_hour)
                     .unwrap_or(0.0);
 
                 let persistent_cost = point
@@ -230,7 +300,7 @@ pub fn build_cost_summary_dto(
                     .as_ref()
                     .and_then(|s| s.persistent.as_ref())
                     .and_then(|fs| fs.used_bytes)
-                    .map(|b| b / BYTES_PER_GB * unit_prices.storage_gb_hour / 3600.0)
+                    .map(|b| (b / BYTES_PER_GB) * interval_hours * unit_prices.storage_gb_hour)
                     .unwrap_or(0.0);
 
                 let network_cost = point
@@ -239,18 +309,17 @@ pub fn build_cost_summary_dto(
                     .map(|n| {
                         let rx_gb = n.rx_bytes.unwrap_or(0.0) / BYTES_PER_GB;
                         let tx_gb = n.tx_bytes.unwrap_or(0.0) / BYTES_PER_GB;
-                        (rx_gb + tx_gb) * unit_prices.network_external_gb / 3600.0
+                        (rx_gb + tx_gb) * unit_prices.network_external_gb
                     })
                     .unwrap_or(0.0);
 
+                summary.cpu_cost_usd += cpu_cost;
+                summary.memory_cost_usd += memory_cost;
                 summary.ephemeral_storage_cost_usd += ephemeral_cost;
                 summary.persistent_storage_cost_usd += persistent_cost;
                 summary.network_cost_usd += network_cost;
 
-                summary.total_cost_usd += cost.total_cost_usd.unwrap_or(0.0)
-                    + ephemeral_cost
-                    + persistent_cost
-                    + network_cost;
+                summary.total_cost_usd += cpu_cost + memory_cost + ephemeral_cost + persistent_cost + network_cost;
             }
         }
     }
