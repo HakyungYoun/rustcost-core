@@ -21,7 +21,9 @@ use crate::domain::info::service::info_settings_service::{
 
 // info k8s
 use crate::domain::info::service::info_namespace_service::get_k8s_namespaces;
-use crate::domain::info::service::info_k8s_deployment_service::get_k8s_deployments;
+use crate::domain::info::service::info_k8s_deployment_service::{
+    get_k8s_deployment, get_k8s_deployments, get_k8s_deployments_paginated,
+};
 use crate::domain::info::service::info_k8s_persistent_volume_service::get_k8s_persistent_volumes;
 use crate::domain::info::service::info_k8s_persistent_volume_claim_service::get_k8s_persistent_volume_claims;
 use crate::domain::info::service::info_k8s_resource_quota_service::get_k8s_resource_quotas;
@@ -194,7 +196,9 @@ pub struct InfoK8sService;
 impl InfoK8sService {
     delegate_async_service! {
         fn get_k8s_namespaces() -> serde_json::Value => get_k8s_namespaces;
-        fn get_k8s_deployments() -> serde_json::Value => get_k8s_deployments;
+        fn get_k8s_deployments() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::apps::v1::Deployment> => get_k8s_deployments;
+        fn get_k8s_deployments_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::apps::v1::Deployment> => get_k8s_deployments_paginated;
+        fn get_k8s_deployment(namespace: String, name: String) -> k8s_openapi::api::apps::v1::Deployment => get_k8s_deployment;
         fn get_k8s_persistent_volumes() -> serde_json::Value => get_k8s_persistent_volumes;
         fn get_k8s_persistent_volume_claims() -> serde_json::Value => get_k8s_persistent_volume_claims;
         fn get_k8s_resource_quotas() -> serde_json::Value => get_k8s_resource_quotas;

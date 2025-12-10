@@ -21,6 +21,10 @@ pub fn info_routes() -> Router<AppState> {
         .route("/versions", get(InfoController::get_info_versions))
 
         .route("/k8s/namespaces", get(InfoK8sNamespaceController::get_k8s_namespaces))
+        .route(
+            "/k8s/deployments/{namespace}/{name}",
+            get(InfoK8sDeploymentController::get_k8s_deployment),
+        )
         .route("/k8s/deployments", get(InfoK8sDeploymentController::get_k8s_deployments))
         .route("/k8s/persistentvolumes", get(InfoK8sPersistentVolumeController::get_k8s_persistent_volumes))
         .route("/k8s/persistentvolumeclaims", get(InfoK8sPvcController::get_k8s_persistent_volume_claims))

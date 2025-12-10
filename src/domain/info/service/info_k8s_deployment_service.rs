@@ -1,13 +1,55 @@
 use anyhow::Result;
-use serde_json::Value;
+use k8s_openapi::api::apps::v1::Deployment;
+
+use crate::api::dto::paginated_response::PaginatedResponse;
 use crate::core::client::k8s::client_k8s_deployment;
 use crate::core::client::k8s::util::{build_client, read_token};
 
-pub async fn get_k8s_deployments() -> Result<Value> {
+pub async fn get_k8s_deployments() -> Result<PaginatedResponse<Deployment>> {
+    get_k8s_deployments_paginated(None, None).await
+}
+
+pub async fn get_k8s_deployments_paginated(
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<PaginatedResponse<Deployment>> {
+    const DEFAULT_LIMIT: usize = 50;
+
     let token = read_token()?;
     let client = build_client()?;
 
     let deployments = client_k8s_deployment::fetch_deployments(&token, &client).await?;
-    Ok(serde_json::to_value(deployments)?)
+    let total = deployments.items.len();
+
+    let offset = offset.unwrap_or(0).min(total);
+    let limit = limit.unwrap_or(DEFAULT_LIMIT);
+    let end = (offset + limit).min(total);
+
+    let items = deployments
+        .items
+        .into_iter()
+        .skip(offset)
+        .take(end.saturating_sub(offset))
+        .collect();
+
+    Ok(PaginatedResponse {
+        items,
+        total,
+        limit: end.saturating_sub(offset),
+        offset,
+    })
+}
+
+pub async fn get_k8s_deployment(namespace: String, name: String) -> Result<Deployment> {
+    let token = read_token()?;
+    let client = build_client()?;
+
+    client_k8s_deployment::fetch_deployment_by_name_and_namespace(
+        &token,
+        &client,
+        &namespace,
+        &name,
+    )
+    .await
 }
 

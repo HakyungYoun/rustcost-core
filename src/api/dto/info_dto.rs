@@ -8,3 +8,10 @@ pub struct K8sListQuery {
     pub label_selector: Option<String>,
     pub node_name: Option<String>, // for pods by node
 }
+
+#[derive(Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct PaginationQuery {
+    pub limit: Option<usize>,
+    pub offset: Option<usize>,
+}
