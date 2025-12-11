@@ -24,6 +24,9 @@ use crate::domain::info::service::info_namespace_service::get_k8s_namespaces;
 use crate::domain::info::service::info_k8s_deployment_service::{
     get_k8s_deployment, get_k8s_deployments, get_k8s_deployments_paginated,
 };
+use crate::domain::info::service::info_k8s_statefulset_service::{
+    get_k8s_statefulset, get_k8s_statefulsets, get_k8s_statefulsets_paginated,
+};
 use crate::domain::info::service::info_k8s_persistent_volume_service::get_k8s_persistent_volumes;
 use crate::domain::info::service::info_k8s_persistent_volume_claim_service::get_k8s_persistent_volume_claims;
 use crate::domain::info::service::info_k8s_resource_quota_service::get_k8s_resource_quotas;
@@ -199,6 +202,9 @@ impl InfoK8sService {
         fn get_k8s_deployments() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::apps::v1::Deployment> => get_k8s_deployments;
         fn get_k8s_deployments_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::apps::v1::Deployment> => get_k8s_deployments_paginated;
         fn get_k8s_deployment(namespace: String, name: String) -> k8s_openapi::api::apps::v1::Deployment => get_k8s_deployment;
+        fn get_k8s_statefulsets() -> crate::api::dto::paginated_response::PaginatedResponse<k8s_openapi::api::apps::v1::StatefulSet> => get_k8s_statefulsets;
+        fn get_k8s_statefulsets_paginated(limit: Option<usize>, offset: Option<usize>) -> PaginatedResponse<k8s_openapi::api::apps::v1::StatefulSet> => get_k8s_statefulsets_paginated;
+        fn get_k8s_statefulset(namespace: String, name: String) -> k8s_openapi::api::apps::v1::StatefulSet => get_k8s_statefulset;
         fn get_k8s_persistent_volumes() -> serde_json::Value => get_k8s_persistent_volumes;
         fn get_k8s_persistent_volume_claims() -> serde_json::Value => get_k8s_persistent_volume_claims;
         fn get_k8s_resource_quotas() -> serde_json::Value => get_k8s_resource_quotas;

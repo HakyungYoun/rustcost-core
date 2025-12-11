@@ -6,6 +6,7 @@ use crate::api::controller::info::info_controller::InfoController;
 use crate::api::controller::info::setting::InfoSettingController;
 use crate::api::controller::info::k8s::namespace::InfoK8sNamespaceController;
 use crate::api::controller::info::k8s::deployment::InfoK8sDeploymentController;
+use crate::api::controller::info::k8s::statefulset::InfoK8sStatefulSetController;
 use crate::api::controller::info::k8s::persistent_volume::InfoK8sPersistentVolumeController;
 use crate::api::controller::info::k8s::pvc::InfoK8sPvcController;
 use crate::api::controller::info::k8s::resource_quota::InfoK8sResourceQuotaController;
@@ -26,6 +27,11 @@ pub fn info_routes() -> Router<AppState> {
             get(InfoK8sDeploymentController::get_k8s_deployment),
         )
         .route("/k8s/deployments", get(InfoK8sDeploymentController::get_k8s_deployments))
+        .route(
+            "/k8s/statefulsets/{namespace}/{name}",
+            get(InfoK8sStatefulSetController::get_k8s_statefulset),
+        )
+        .route("/k8s/statefulsets", get(InfoK8sStatefulSetController::get_k8s_statefulsets))
         .route("/k8s/persistentvolumes", get(InfoK8sPersistentVolumeController::get_k8s_persistent_volumes))
         .route("/k8s/persistentvolumeclaims", get(InfoK8sPvcController::get_k8s_persistent_volume_claims))
         .route("/k8s/resourcequotas", get(InfoK8sResourceQuotaController::get_k8s_resource_quotas))

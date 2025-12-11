@@ -10,6 +10,7 @@ pub mod kube_resources;
 pub mod nodes;
 pub mod pods;
 pub mod deployments;
+pub mod statefulsets;
 pub mod namespaces;
 pub mod other_resources;
 pub mod watchers;

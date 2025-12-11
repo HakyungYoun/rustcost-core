@@ -3,6 +3,7 @@ pub mod node;
 pub mod pod;
 pub mod container;
 pub mod deployment;
+pub mod statefulset;
 pub mod persistent_volume;
 pub mod pvc;
 pub mod resource_quota;

@@ -257,6 +257,97 @@ pub mod client_k8s_deployment_mapper {
     }
 }
 
+// StatefulSet compatibility
+pub mod client_k8s_statefulset {
+    use super::*;
+    use crate::core::client::{kube_client, statefulsets};
+    use crate::core::client::kube_resources::StatefulSet;
+    use kube::api::{DeleteParams, Patch, PatchParams, PostParams};
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
+
+    #[derive(Serialize, Deserialize, Clone)]
+    pub struct StatefulSetList {
+        pub items: Vec<StatefulSet>,
+    }
+
+    pub async fn fetch_statefulsets(
+        _token: &str,
+        _client: &reqwest::Client,
+    ) -> Result<StatefulSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = statefulsets::fetch_statefulsets(&kube).await?;
+        Ok(StatefulSetList { items })
+    }
+
+    pub async fn fetch_statefulset_by_name_and_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<StatefulSet> {
+        let kube = kube_client::build_kube_client().await?;
+        statefulsets::fetch_statefulset_by_name_and_namespace(&kube, namespace, name).await
+    }
+
+    pub async fn fetch_statefulsets_by_namespace(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+    ) -> Result<StatefulSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = statefulsets::fetch_statefulsets_by_namespace(&kube, namespace).await?;
+        Ok(StatefulSetList { items })
+    }
+
+    pub async fn fetch_statefulsets_by_label(
+        _token: &str,
+        _client: &reqwest::Client,
+        label: &str,
+    ) -> Result<StatefulSetList> {
+        let kube = kube_client::build_kube_client().await?;
+        let items = statefulsets::fetch_statefulsets_by_label(&kube, label).await?;
+        Ok(StatefulSetList { items })
+    }
+
+    pub async fn create_statefulset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        statefulset: &StatefulSet,
+    ) -> Result<StatefulSet> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<StatefulSet> = kube::Api::namespaced(kube, namespace);
+        Ok(api.create(&PostParams::default(), statefulset).await?)
+    }
+
+    pub async fn patch_statefulset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+        patch: Value,
+    ) -> Result<StatefulSet> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<StatefulSet> = kube::Api::namespaced(kube, namespace);
+        Ok(api
+            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+            .await?)
+    }
+
+    pub async fn delete_statefulset(
+        _token: &str,
+        _client: &reqwest::Client,
+        namespace: &str,
+        name: &str,
+    ) -> Result<()> {
+        let kube = kube_client::build_kube_client().await?;
+        let api: kube::Api<StatefulSet> = kube::Api::namespaced(kube, namespace);
+        let _ = api.delete(name, &DeleteParams::default()).await?;
+        Ok(())
+    }
+}
+
 // Namespace compatibility
 pub mod client_k8s_namespace {
     use super::*;
